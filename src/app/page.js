@@ -4,12 +4,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Home, BarChart2, PlusCircle, Camera, ChevronLeft, 
   Flame, Droplets, Beef, Utensils, AlertCircle, Edit2, Check,
-  Search, Plus, X, Sparkles, Coffee, Sun, Moon, Apple, Settings, Target, Activity, User, Loader2
+  Search, Plus, X, Sparkles, Coffee, Sun, Moon, Apple, Settings, Target, Activity, User, Loader2, Trash2
 } from 'lucide-react';
 
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot, collection } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
 
 // --- FIREBASE KONFIGURATION FÜR VERZEL/GOOGLE CLOUD ---
 const firebaseConfig = {
@@ -288,6 +288,20 @@ export default function App() {
     setCurrentView('dashboard');
   };
 
+  const handleDeleteLog = async (logId) => {
+    // Lokales Update
+    setLogs(logs.filter(l => l.id !== logId));
+
+    // Aus der Cloud löschen (falls DB aktiv)
+    if (user && db) {
+      try {
+        await deleteDoc(doc(db, getBasePath(user.uid), 'food_logs', logId.toString()));
+      } catch (err) {
+        console.error("Fehler beim Löschen aus der Cloud:", err);
+      }
+    }
+  };
+
   const handleSaveProfile = async () => {
     // Cloud Speicherung fürs User-Profil
     if (user && db) {
@@ -309,11 +323,21 @@ export default function App() {
 
   const renderDashboard = () => (
     <div className="p-4 space-y-6 pb-24 animate-in fade-in">
+      {}
       <div className="flex justify-between items-center px-2">
         <h1 className="text-2xl font-black text-slate-800 dark:text-white transition-colors">Hallo! 👋</h1>
-        <button onClick={() => setCurrentView('settings')} className="p-2 bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-full text-slate-600 dark:text-slate-300 transition-colors">
-          <Settings size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setIsDarkMode(!isDarkMode)} 
+            className="p-2 bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-full text-slate-600 dark:text-slate-300 transition-colors"
+            title="Design wechseln"
+          >
+            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+          <button onClick={() => setCurrentView('settings')} className="p-2 bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-full text-slate-600 dark:text-slate-300 transition-colors">
+            <Settings size={20} />
+          </button>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
@@ -380,14 +404,23 @@ export default function App() {
               
               <div className="space-y-3">
                 {mealLogs.map(log => (
-                  <div key={log.id} className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-slate-700 last:border-0 transition-colors">
+                  <div key={log.id} className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-slate-700 last:border-0 transition-colors group">
                     <div>
                       <p className="font-bold text-slate-700 dark:text-slate-300 text-sm">{log.name}</p>
                       <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                         {log.macros.p}g P / {log.macros.c}g C / {log.macros.f}g F
                       </p>
                     </div>
-                    <span className="font-bold text-slate-700 dark:text-slate-300">{log.calories} <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">kcal</span></span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-slate-700 dark:text-slate-300">{log.calories} <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">kcal</span></span>
+                      <button 
+                        onClick={() => handleDeleteLog(log.id)}
+                        className="text-slate-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 p-1.5 rounded-lg transition-colors"
+                        title="Eintrag löschen"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
