@@ -11,7 +11,6 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
 
-// --- FIREBASE KONFIGURATION FÜR VERZEL/GOOGLE CLOUD ---
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -21,7 +20,6 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-// Initialisiere Firebase (wird nur ausgeführt, wenn Keys da sind, verhindert Abstürze lokal)
 let app, auth, db;
 if (firebaseConfig.apiKey) {
   app = initializeApp(firebaseConfig);
@@ -29,12 +27,10 @@ if (firebaseConfig.apiKey) {
   db = getFirestore(app);
 }
 
-// Hilfsfunktion: Saubere Datenbankpfade für dein Google Cloud Projekt
 const getBasePath = (uid) => {
   return `users/${uid}`; 
 };
 
-// --- HILFSFUNKTION: Bilder im Browser komprimieren ---
 const compressImage = (file, maxWidth = 800, quality = 0.7) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -66,8 +62,8 @@ const compressImage = (file, maxWidth = 800, quality = 0.7) => {
 const MEAL_TYPES = ['Frühstück', 'Mittagessen', 'Abendessen', 'Snack'];
 
 const INITIAL_LOGS = [
-  { id: 1, type: 'Frühstück', name: 'Haferbrei mit Beeren', calories: 450, macros: { p: 15, c: 70, f: 10 }, time: '07:30' },
-  { id: 2, type: 'Snack', name: 'Banane & Espresso', calories: 120, macros: { p: 1, c: 27, f: 0 }, time: '10:15' },
+  { id: 1, type: 'Frühstück', name: 'Haferbrei mit Beeren (150g)', calories: 450, macros: { p: 15, c: 70, f: 10 }, time: '07:30' },
+  { id: 2, type: 'Snack', name: 'Banane & Espresso (120g)', calories: 120, macros: { p: 1, c: 27, f: 0 }, time: '10:15' },
 ];
 
 const WEEKLY_DATA = [
@@ -80,9 +76,7 @@ export default function App() {
   const [logs, setLogs] = useState([]);
   const [user, setUser] = useState(null);
   
-  // --- CLOUD SYNC & AUTH ---
   useEffect(() => {
-    // Wenn keine DB konfiguriert ist (z.B. lokaler Test ohne .env), nimm Dummy-Daten
     if (!auth) {
       setLogs(INITIAL_LOGS);
       return;
@@ -103,7 +97,6 @@ export default function App() {
   useEffect(() => {
     if (!user || !db) return;
 
-    // Lade getrackte Mahlzeiten live aus der Cloud
     const logsRef = collection(db, getBasePath(user.uid), 'food_logs');
     const unsubLogs = onSnapshot(logsRef, (snapshot) => {
       const loadedLogs = [];
@@ -112,7 +105,6 @@ export default function App() {
       setLogs(loadedLogs);
     }, (error) => console.error("Sync Error Logs:", error));
 
-    // Lade Profil-Einstellungen live aus der Cloud
     const profileRef = collection(db, getBasePath(user.uid), 'profiles');
     const unsubProfile = onSnapshot(profileRef, (snapshot) => {
       let loadedProfile = null;
@@ -121,18 +113,15 @@ export default function App() {
       });
       if (loadedProfile) {
         setProfile(loadedProfile);
-        setShowOnboarding(false); // Profil existiert -> ab aufs Dashboard!
+        setShowOnboarding(false);
       }
     }, (error) => console.error("Sync Error Profile:", error));
 
     return () => { unsubLogs(); unsubProfile(); };
   }, [user]);
   
-  // --- THEME STATE ---
   const [isDarkMode, setIsDarkMode] = useState(false);
   
-  // --- USER PROFILE & ONBOARDING ---
-  // Wir prüfen direkt im localStorage, ob das Onboarding schon mal abgeschlossen wurde
   const [showOnboarding, setShowOnboarding] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('food_tracker_onboarded') !== 'true';
@@ -157,7 +146,6 @@ export default function App() {
     };
   });
 
-  // --- KALORIEN BERECHNUNG (Mifflin-St. Jeor) ---
   const goals = React.useMemo(() => {
     let bmr = (10 * profile.weight) + (6.25 * profile.height) - (5 * profile.age);
     bmr += profile.gender === 'male' ? 5 : -161;
@@ -189,11 +177,11 @@ export default function App() {
     const stagedNames = stagedItems.map(i => i.name.toLowerCase());
     
     if (stagedNames.some(n => n.includes('hafer')) && !stagedNames.some(n => n.includes('hafermilch'))) {
-      newSuggestions.push({ name: 'Hafermilch (200ml)', calories: 90, macros: { p: 2, c: 13, f: 3 } });
-      newSuggestions.push({ name: 'Blaubeeren (50g)', calories: 28, macros: { p: 0, c: 7, f: 0 } });
+      newSuggestions.push({ name: 'Hafermilch', per100g: { calories: 45, p: 1, c: 6, f: 1.5 }, amount: 200 });
+      newSuggestions.push({ name: 'Blaubeeren', per100g: { calories: 56, p: 0.7, c: 14, f: 0.3 }, amount: 50 });
     }
     if (stagedNames.some(n => n.includes('nudeln') || n.includes('pasta')) && !stagedNames.some(n => n.includes('parmesan'))) {
-      newSuggestions.push({ name: 'Parmesan (20g)', calories: 80, macros: { p: 7, c: 0, f: 6 } });
+      newSuggestions.push({ name: 'Parmesan', per100g: { calories: 400, p: 35, c: 0, f: 30 }, amount: 20 });
     }
     
     setSuggestions(newSuggestions);
@@ -218,13 +206,13 @@ export default function App() {
               id: p._id,
               name: p.product_name,
               brand: p.brands ? p.brands.split(',')[0] : 'Generisch',
-              calories: Math.round(p.nutriments['energy-kcal_100g'] || 0),
-              macros: {
+              per100g: {
+                calories: Math.round(p.nutriments['energy-kcal_100g'] || 0),
                 p: Math.round(p.nutriments.proteins_100g || 0),
                 c: Math.round(p.nutriments.carbohydrates_100g || 0),
                 f: Math.round(p.nutriments.fat_100g || 0)
               },
-              baseAmount: "100g"
+              amount: 100 // Standard 100g
             }));
           setSearchResults(mappedResults);
         }
@@ -249,6 +237,13 @@ export default function App() {
   const remainingCals = goals.calories - consumed.cals;
   const calPercent = Math.min(100, (consumed.cals / goals.calories) * 100);
 
+  const getItemCalories = (item) => Math.round((item.per100g.calories * item.amount) / 100);
+  const getItemMacros = (item) => ({
+    p: Math.round((item.per100g.p * item.amount) / 100),
+    c: Math.round((item.per100g.c * item.amount) / 100),
+    f: Math.round((item.per100g.f * item.amount) / 100),
+  });
+
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -260,8 +255,8 @@ export default function App() {
     setTimeout(() => {
       setStagedItems(prev => [...prev, {
         name: 'Pasta mit Hähnchen',
-        calories: 680,
-        macros: { p: 45, c: 85, f: 15 }
+        per100g: { calories: 160, p: 12, c: 20, f: 3.5 },
+        amount: 400
       }]);
       setIsAnalyzing(false);
       setPreviewImage(null);
@@ -270,7 +265,17 @@ export default function App() {
   };
 
   const addStagedItem = (item) => {
-    setStagedItems([...stagedItems, item]);
+    const newItem = {
+      ...item,
+      amount: item.amount || 100,
+      per100g: item.per100g || {
+        calories: item.calories || 0,
+        p: item.macros?.p || 0,
+        c: item.macros?.c || 0,
+        f: item.macros?.f || 0
+      }
+    };
+    setStagedItems([...stagedItems, newItem]);
     setSearchQuery('');
   };
 
@@ -282,16 +287,14 @@ export default function App() {
     const newLogs = stagedItems.map((item, idx) => ({
       id: Date.now() + idx,
       type: selectedMeal,
-      name: item.name,
-      calories: item.calories,
-      macros: item.macros,
+      name: `${item.name} (${item.amount}g)`,
+      calories: getItemCalories(item),
+      macros: getItemMacros(item),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }));
     
-    // Lokales Update (Optimistic UI)
     setLogs([...logs, ...newLogs]);
 
-    // Speichern in der Cloud (wenn DB vorhanden)
     if (user && db) {
       for (const log of newLogs) {
         await setDoc(doc(db, getBasePath(user.uid), 'food_logs', log.id.toString()), log);
@@ -304,10 +307,8 @@ export default function App() {
   };
 
   const handleDeleteLog = async (logId) => {
-    // Lokales Update
     setLogs(logs.filter(l => l.id !== logId));
 
-    // Aus der Cloud löschen (falls DB aktiv)
     if (user && db) {
       try {
         await deleteDoc(doc(db, getBasePath(user.uid), 'food_logs', logId.toString()));
@@ -318,13 +319,11 @@ export default function App() {
   };
 
   const handleSaveProfile = async () => {
-    // Sofort lokal speichern, damit beim Reload nichts verloren geht
     if (typeof window !== 'undefined') {
       localStorage.setItem('food_tracker_onboarded', 'true');
       localStorage.setItem('food_tracker_profile', JSON.stringify(profile));
     }
 
-    // Cloud Speicherung fürs User-Profil
     if (user && db) {
       try {
         await setDoc(doc(db, getBasePath(user.uid), 'profiles', 'default'), profile);
@@ -348,7 +347,6 @@ export default function App() {
 
   const renderDashboard = () => (
     <div className="p-4 space-y-6 pb-24 animate-in fade-in">
-      {}
       <div className="flex justify-between items-center px-2">
         <h1 className="text-2xl font-black text-slate-800 dark:text-white transition-colors">Hallo! 👋</h1>
         <div className="flex items-center gap-2">
@@ -492,7 +490,7 @@ export default function App() {
            <Search className="absolute left-4 text-slate-400 dark:text-slate-500 group-focus-within:text-fuchsia-500 transition-colors" size={20} />
            <input 
              type="text" 
-             placeholder="Lebensmittel suchen..." 
+             placeholder="Lebensmittel suchen (z.B. Hanuta)..." 
              className="w-full pl-12 pr-14 py-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm focus:ring-2 focus:ring-fuchsia-500 outline-none text-slate-800 dark:text-slate-100 font-medium placeholder:font-normal transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500" 
              value={searchQuery} 
              onChange={(e) => setSearchQuery(e.target.value)} 
@@ -539,14 +537,10 @@ export default function App() {
                       <div className="text-left pr-4">
                         <p className="font-bold text-slate-800 dark:text-slate-200 line-clamp-1">{item.name}</p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          {item.brand} • {item.baseAmount} • {item.macros.p}g P | {item.macros.c}g C | {item.macros.f}g F
+                          {item.brand} • {item.per100g.calories} kcal / 100g
                         </p>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
-                        <div className="text-right">
-                          <span className="font-black text-fuchsia-600 dark:text-fuchsia-400 block leading-none">{item.calories}</span>
-                          <span className="text-[10px] font-normal text-slate-400 dark:text-slate-500">kcal</span>
-                        </div>
                         <PlusCircle className="text-fuchsia-500" size={24} />
                       </div>
                    </button>
@@ -575,7 +569,7 @@ export default function App() {
                  >
                    <div className="text-left">
                      <p className="text-sm font-bold text-slate-700 dark:text-slate-300 group-hover:text-fuchsia-700 dark:group-hover:text-fuchsia-400">{sug.name}</p>
-                     <p className="text-xs text-slate-500 dark:text-slate-400">{sug.calories} kcal</p>
+                     <p className="text-xs text-slate-500 dark:text-slate-400">{Math.round((sug.per100g.calories * sug.amount) / 100)} kcal ({sug.amount}g)</p>
                    </div>
                    <div className="p-1.5 bg-fuchsia-50 dark:bg-fuchsia-900/30 rounded-lg group-hover:bg-fuchsia-100 dark:group-hover:bg-fuchsia-900/50">
                      <Plus size={16} className="text-fuchsia-600 dark:text-fuchsia-400" />
@@ -595,28 +589,50 @@ export default function App() {
              </div>
              
              <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden mb-6 transition-colors">
-               {stagedItems.map((item, idx) => (
-                 <div key={idx} className="p-4 border-b border-slate-100 dark:border-slate-700 last:border-0 flex justify-between items-center bg-white dark:bg-slate-800 group transition-colors">
-                   <div>
-                     <p className="font-bold text-slate-800 dark:text-slate-200">{item.name}</p>
-                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{item.macros.p}g P / {item.macros.c}g C / {item.macros.f}g F</p>
+               {stagedItems.map((item, idx) => {
+                 const currentCals = getItemCalories(item);
+                 const currentMacros = getItemMacros(item);
+                 return (
+                   <div key={idx} className="p-4 border-b border-slate-100 dark:border-slate-700 last:border-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white dark:bg-slate-800 group transition-colors">
+                     <div className="flex-1">
+                       <p className="font-bold text-slate-800 dark:text-slate-200">{item.name}</p>
+                       <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                         {currentMacros.p}g P / {currentMacros.c}g C / {currentMacros.f}g F
+                       </p>
+                     </div>
+                     <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                       <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-600">
+                         <input 
+                           type="number" 
+                           min="1" 
+                           value={item.amount} 
+                           onChange={(e) => {
+                             const val = Math.max(1, Number(e.target.value));
+                             setStagedItems(stagedItems.map((it, i) => i === idx ? {...it, amount: val} : it));
+                           }}
+                           className="w-14 bg-transparent font-bold text-slate-800 dark:text-slate-100 outline-none text-right"
+                         />
+                         <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">g</span>
+                       </div>
+                       <div className="text-right min-w-[70px]">
+                         <span className="font-black text-slate-700 dark:text-slate-300">{currentCals}</span>
+                         <span className="text-[10px] font-normal text-slate-400 dark:text-slate-500 block">kcal</span>
+                       </div>
+                       <button 
+                         onClick={() => removeStagedItem(idx)} 
+                         className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                       >
+                         <X size={18}/>
+                       </button>
+                     </div>
                    </div>
-                   <div className="flex items-center gap-4">
-                     <span className="font-black text-slate-700 dark:text-slate-300">{item.calories} <span className="text-[10px] font-normal text-slate-400 dark:text-slate-500">kcal</span></span>
-                     <button 
-                       onClick={() => removeStagedItem(idx)} 
-                       className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                     >
-                       <X size={18}/>
-                     </button>
-                   </div>
-                 </div>
-               ))}
+                 );
+               })}
                
                <div className="bg-slate-50 dark:bg-slate-700/50 p-4 flex justify-between items-center border-t border-slate-200 dark:border-slate-700 transition-colors">
                   <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Summe</span>
                   <span className="font-black text-fuchsia-600 dark:text-fuchsia-400 text-lg">
-                    {stagedItems.reduce((acc, i) => acc + i.calories, 0)} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">kcal</span>
+                    {stagedItems.reduce((acc, i) => acc + getItemCalories(i), 0)} <span className="text-xs font-normal text-slate-500 dark:text-slate-400">kcal</span>
                   </span>
                </div>
              </div>
@@ -636,7 +652,7 @@ export default function App() {
             <div className="bg-slate-100 dark:bg-slate-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors">
               <Search size={24} className="text-slate-300 dark:text-slate-600" />
             </div>
-            <p className="text-sm">Suche nach Lebensmitteln<br/>oder nutze den Kamera-Scan.</p>
+            <p className="text-sm">Suche nach Lebensmitteln (z.B. Hanuta)<br/>und passe die Gramm-Menge an.</p>
           </div>
         )}
       </div>
@@ -790,14 +806,12 @@ export default function App() {
   return (
     <div className={`${isDarkMode ? 'dark' : ''}`}>
       <div className="max-w-md mx-auto min-h-screen bg-slate-50 dark:bg-slate-950 font-sans relative overflow-hidden text-slate-900 dark:text-slate-100 shadow-2xl transition-colors">
-        {/* Dynamic Content Area */}
         {currentView === 'dashboard' && !showOnboarding && renderDashboard()}
         {currentView === 'add' && !showOnboarding && renderAddFood()}
         {currentView === 'weekly' && !showOnboarding && renderWeekly()}
         {showOnboarding && renderSettings()}
         {currentView === 'settings' && !showOnboarding && renderSettings()}
 
-        {/* Bottom Navigation */}
         {currentView !== 'add' && currentView !== 'settings' && !showOnboarding && (
           <div className="absolute bottom-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 py-4 pb-8 flex justify-between items-center z-50 transition-colors">
             <button 
