@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  darkMode: 'class', // Zwingend erforderlich, damit der Klassen-Wechsel greift
+  darkMode: 'class', // Zwingend erforderlich für manuellen Dark Mode Schalter
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",

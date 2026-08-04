@@ -75,6 +75,25 @@ export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [logs, setLogs] = useState([]);
   const [user, setUser] = useState(null);
+
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('food_tracker_theme');
+      if (savedTheme) return savedTheme === 'dark';
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('food_tracker_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('food_tracker_theme', 'light');
+    }
+  }, [isDarkMode]);
   
   useEffect(() => {
     if (!auth) {
@@ -119,8 +138,6 @@ export default function App() {
 
     return () => { unsubLogs(); unsubProfile(); };
   }, [user]);
-  
-  const [isDarkMode, setIsDarkMode] = useState(false);
   
   const [showOnboarding, setShowOnboarding] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -212,7 +229,7 @@ export default function App() {
                 c: Math.round(p.nutriments.carbohydrates_100g || 0),
                 f: Math.round(p.nutriments.fat_100g || 0)
               },
-              amount: 100 // Standard 100g
+              amount: 100 
             }));
           setSearchResults(mappedResults);
         }
@@ -804,41 +821,39 @@ export default function App() {
   );
 
   return (
-    <div className={`${isDarkMode ? 'dark' : ''}`}>
-      <div className="max-w-md mx-auto min-h-screen bg-slate-50 dark:bg-slate-950 font-sans relative overflow-hidden text-slate-900 dark:text-slate-100 shadow-2xl transition-colors">
-        {currentView === 'dashboard' && !showOnboarding && renderDashboard()}
-        {currentView === 'add' && !showOnboarding && renderAddFood()}
-        {currentView === 'weekly' && !showOnboarding && renderWeekly()}
-        {showOnboarding && renderSettings()}
-        {currentView === 'settings' && !showOnboarding && renderSettings()}
+    <div className="max-w-md mx-auto min-h-screen bg-slate-50 dark:bg-slate-950 font-sans relative overflow-hidden text-slate-900 dark:text-slate-100 shadow-2xl transition-colors">
+      {currentView === 'dashboard' && !showOnboarding && renderDashboard()}
+      {currentView === 'add' && !showOnboarding && renderAddFood()}
+      {currentView === 'weekly' && !showOnboarding && renderWeekly()}
+      {showOnboarding && renderSettings()}
+      {currentView === 'settings' && !showOnboarding && renderSettings()}
 
-        {currentView !== 'add' && currentView !== 'settings' && !showOnboarding && (
-          <div className="absolute bottom-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 py-4 pb-8 flex justify-between items-center z-50 transition-colors">
-            <button 
-              onClick={() => setCurrentView('dashboard')}
-              className={`flex flex-col items-center gap-1 transition-colors ${currentView === 'dashboard' ? 'text-fuchsia-600 dark:text-fuchsia-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
-            >
-              <Home size={24} />
-              <span className="text-[10px] font-bold">Heute</span>
-            </button>
-            
-            <button 
-              onClick={() => { setSelectedMeal('Mittagessen'); setCurrentView('add'); }}
-              className="bg-fuchsia-500 text-white p-4 rounded-full shadow-lg shadow-fuchsia-500/30 transform -translate-y-4 hover:scale-105 transition-transform"
-            >
-              <PlusCircle size={28} />
-            </button>
-            
-            <button 
-              onClick={() => setCurrentView('weekly')}
-              className={`flex flex-col items-center gap-1 transition-colors ${currentView === 'weekly' ? 'text-fuchsia-600 dark:text-fuchsia-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
-            >
-              <BarChart2 size={24} />
-              <span className="text-[10px] font-bold">Woche</span>
-            </button>
-          </div>
-        )}
-      </div>
+      {currentView !== 'add' && currentView !== 'settings' && !showOnboarding && (
+        <div className="absolute bottom-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 py-4 pb-8 flex justify-between items-center z-50 transition-colors">
+          <button 
+            onClick={() => setCurrentView('dashboard')}
+            className={`flex flex-col items-center gap-1 transition-colors ${currentView === 'dashboard' ? 'text-fuchsia-600 dark:text-fuchsia-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+          >
+            <Home size={24} />
+            <span className="text-[10px] font-bold">Heute</span>
+          </button>
+          
+          <button 
+            onClick={() => { setSelectedMeal('Mittagessen'); setCurrentView('add'); }}
+            className="bg-fuchsia-500 text-white p-4 rounded-full shadow-lg shadow-fuchsia-500/30 transform -translate-y-4 hover:scale-105 transition-transform"
+          >
+            <PlusCircle size={28} />
+          </button>
+          
+          <button 
+            onClick={() => setCurrentView('weekly')}
+            className={`flex flex-col items-center gap-1 transition-colors ${currentView === 'weekly' ? 'text-fuchsia-600 dark:text-fuchsia-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+          >
+            <BarChart2 size={24} />
+            <span className="text-[10px] font-bold">Woche</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
