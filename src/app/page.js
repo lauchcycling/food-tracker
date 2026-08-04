@@ -4,31 +4,41 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Home, BarChart2, PlusCircle, Camera, ChevronLeft, 
   Flame, Droplets, Beef, Utensils, AlertCircle, Edit2, Check,
-  Search, Plus, X, Sparkles, Coffee, Sun, Moon, Apple, Settings, Target, Activity, User, Loader2, Trash2
+  Search, Plus, X, Sparkles, Coffee, Sun, Moon, Apple, Settings, Target, Activity, User, Loader2, Trash2, Wand2
 } from 'lucide-react';
 
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot, collection, deleteDoc } from 'firebase/firestore';
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
-};
+const firebaseConfig = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_FIREBASE_API_KEY
+  ? {
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+    }
+  : (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {});
 
 let app, auth, db;
-if (firebaseConfig.apiKey) {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
+try {
+  if (firebaseConfig.apiKey) {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+  }
+} catch (e) {
+  console.error("Firebase init error:", e);
 }
 
 const getBasePath = (uid) => {
-  return `users/${uid}`; 
+  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+    return `users/${uid}`; 
+  }
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+  return `artifacts/${appId}/users/${uid}`;
 };
 
 const compressImage = (file, maxWidth = 800, quality = 0.7) => {
@@ -179,14 +189,19 @@ export default function App() {
   }, [profile]);
 
   const [selectedMeal, setSelectedMeal] = useState('Mittagessen');
+  const [inputTab, setInputTab] = useState('search'); // 'search' | 'prompt' | 'camera'
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
+  
+  // AI Prompt State
+  const [aiPromptText, setAiPromptText] = useState('');
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
+
   const [stagedItems, setStagedItems] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [previewImage, setPreviewImage] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -267,7 +282,6 @@ export default function App() {
 
     setIsAnalyzing(true);
     const compressedBase64 = await compressImage(file, 800, 0.7);
-    setPreviewImage(compressedBase64);
 
     setTimeout(() => {
       setStagedItems(prev => [...prev, {
@@ -276,9 +290,67 @@ export default function App() {
         amount: 400
       }]);
       setIsAnalyzing(false);
-      setPreviewImage(null);
-      setSearchQuery('');
     }, 2000);
+  };
+
+  const handleAiPromptSubmit = async () => {
+    if (!aiPromptText.trim()) return;
+    setIsAiAnalyzing(true);
+
+    try {
+      const apiKey = ""; 
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{
+          parts: [{
+            text: `Analysiere folgende Nahrungsangabe in natürlicher Sprache und zerlege sie in logische einzelne Lebensmittel-Bestandteile mit realistischen Nährwerten pro 100g sowie der erkannten Gramm-Menge. Angabe: "${aiPromptText}"`
+          }]
+        }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                name: { type: "STRING" },
+                amount: { type: "NUMBER", description: "Gramm-Menge" },
+                per100g: {
+                  type: "OBJECT",
+                  properties: {
+                    calories: { type: "INTEGER" },
+                    p: { type: "NUMBER" },
+                    c: { type: "NUMBER" },
+                    f: { type: "NUMBER" }
+                  },
+                  required: ["calories", "p", "c", "f"]
+                }
+              },
+              required: ["name", "amount", "per100g"]
+            }
+          }
+        }
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      const candidate = result.candidates?.[0];
+      if (candidate && candidate.content?.parts?.[0]?.text) {
+        const parsedItems = JSON.parse(candidate.content.parts[0].text);
+        if (Array.isArray(parsedItems)) {
+          setStagedItems(prev => [...prev, ...parsedItems]);
+          setAiPromptText('');
+        }
+      }
+    } catch (err) {
+      console.error("Gemini AI Prompt Fehler:", err);
+    } finally {
+      setIsAiAnalyzing(false);
+    }
   };
 
   const addStagedItem = (item) => {
@@ -320,6 +392,7 @@ export default function App() {
     
     setStagedItems([]);
     setSearchQuery('');
+    setAiPromptText('');
     setCurrentView('dashboard');
   };
 
@@ -503,32 +576,74 @@ export default function App() {
           ))}
         </div>
 
-        <div className="relative flex items-center group">
-           <Search className="absolute left-4 text-slate-400 dark:text-slate-500 group-focus-within:text-fuchsia-500 transition-colors" size={20} />
-           <input 
-             type="text" 
-             placeholder="Lebensmittel suchen (z.B. Hanuta)..." 
-             className="w-full pl-12 pr-14 py-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm focus:ring-2 focus:ring-fuchsia-500 outline-none text-slate-800 dark:text-slate-100 font-medium placeholder:font-normal transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500" 
-             value={searchQuery} 
-             onChange={(e) => setSearchQuery(e.target.value)} 
-           />
-           
-           <input 
-              type="file" 
-              accept="image/*" 
-              capture="environment"
-              className="hidden" 
-              ref={fileInputRef} 
-              onChange={handlePhotoUpload} 
-            />
-           <button 
-             onClick={() => fileInputRef.current.click()} 
-             className="absolute right-2 p-2.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-fuchsia-100 dark:hover:bg-fuchsia-900/50 hover:text-fuchsia-600 dark:hover:text-fuchsia-400 rounded-xl transition-colors"
-             title="KI Foto-Scan"
-           >
-             <Camera size={20} />
-           </button>
+        {/* Input Mode Tabs: Suche / KI-Prompt / Kamera */}
+        <div className="grid grid-cols-3 gap-2 bg-slate-200 dark:bg-slate-800 p-1 rounded-2xl mb-4 transition-colors">
+          <button 
+            onClick={() => setInputTab('search')} 
+            className={`py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${inputTab === 'search' ? 'bg-white dark:bg-slate-700 text-fuchsia-600 dark:text-fuchsia-400 shadow-sm' : 'text-slate-600 dark:text-slate-400'}`}
+          >
+            <Search size={14} /> Suche
+          </button>
+          <button 
+            onClick={() => setInputTab('prompt')} 
+            className={`py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${inputTab === 'prompt' ? 'bg-white dark:bg-slate-700 text-fuchsia-600 dark:text-fuchsia-400 shadow-sm' : 'text-slate-600 dark:text-slate-400'}`}
+          >
+            <Wand2 size={14} /> KI-Prompt
+          </button>
+          <button 
+            onClick={() => { setInputTab('camera'); fileInputRef.current?.click(); }} 
+            className={`py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${inputTab === 'camera' ? 'bg-white dark:bg-slate-700 text-fuchsia-600 dark:text-fuchsia-400 shadow-sm' : 'text-slate-600 dark:text-slate-400'}`}
+          >
+            <Camera size={14} /> Foto-Scan
+          </button>
         </div>
+
+        <input 
+          type="file" 
+          accept="image/*" 
+          capture="environment"
+          className="hidden" 
+          ref={fileInputRef} 
+          onChange={handlePhotoUpload} 
+        />
+
+        {/* MODE 1: SEARCH */}
+        {inputTab === 'search' && (
+          <div className="relative flex items-center group">
+             <Search className="absolute left-4 text-slate-400 dark:text-slate-500 group-focus-within:text-fuchsia-500 transition-colors" size={20} />
+             <input 
+               type="text" 
+               placeholder="Lebensmittel suchen (z.B. Hanuta)..." 
+               className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm focus:ring-2 focus:ring-fuchsia-500 outline-none text-slate-800 dark:text-slate-100 font-medium placeholder:font-normal transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500" 
+               value={searchQuery} 
+               onChange={(e) => setSearchQuery(e.target.value)} 
+             />
+          </div>
+        )}
+
+        {/* MODE 2: AI PROMPT */}
+        {inputTab === 'prompt' && (
+          <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-3 transition-colors animate-in fade-in">
+            <div className="flex items-center gap-2 text-fuchsia-600 dark:text-fuchsia-400 text-sm font-bold">
+              <Wand2 size={16} /> Natürliche Beschreibung eingeben
+            </div>
+            <textarea 
+              rows={3}
+              placeholder="z.B. 250g Nudeln mit Tomatensoße und 30g Parmesan..."
+              className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-medium text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm resize-none transition-colors"
+              value={aiPromptText}
+              onChange={(e) => setAiPromptText(e.target.value)}
+            />
+            <button 
+              onClick={handleAiPromptSubmit}
+              disabled={isAiAnalyzing || !aiPromptText.trim()}
+              className="w-full py-3 bg-fuchsia-500 hover:bg-fuchsia-600 disabled:opacity-50 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-sm"
+            >
+              {isAiAnalyzing ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}
+              {isAiAnalyzing ? 'Gemini analysiert...' : 'Mit KI zerlegen & hinzufügen'}
+            </button>
+          </div>
+        )}
 
         {isAnalyzing && (
           <div className="mt-8 text-center space-y-4 animate-in fade-in">
@@ -537,7 +652,7 @@ export default function App() {
           </div>
         )}
 
-        {searchQuery.length >= 3 && !isAnalyzing && (
+        {searchQuery.length >= 3 && !isAnalyzing && inputTab === 'search' && (
            <div className="mt-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in slide-in-from-top-2 transition-colors">
              {isSearching ? (
                <div className="p-6 text-center text-slate-500 dark:text-slate-400 flex justify-center items-center gap-2">
@@ -572,7 +687,7 @@ export default function App() {
         )}
 
         {stagedItems.length > 0 && suggestions.length > 0 && !isAnalyzing && (
-           <div className="mt-8 bg-gradient-to-br from-fuchsia-50 to-purple-50 dark:from-fuchsia-900/20 dark:to-purple-900/20 border border-fuchsia-100 dark:border-fuchsia-800 rounded-2xl p-5 relative overflow-hidden animate-in fade-in transition-colors">
+           <div className="mt-6 bg-gradient-to-br from-fuchsia-50 to-purple-50 dark:from-fuchsia-900/20 dark:to-purple-900/20 border border-fuchsia-100 dark:border-fuchsia-800 rounded-2xl p-5 relative overflow-hidden animate-in fade-in transition-colors">
              <div className="absolute -top-4 -right-4 p-2 opacity-10"><Sparkles size={80} className="text-fuchsia-600 dark:text-fuchsia-400" /></div>
              <h4 className="text-sm font-bold text-fuchsia-900 dark:text-fuchsia-200 mb-3 flex items-center gap-1.5 z-10 relative">
                <Sparkles size={16} className="text-fuchsia-500 dark:text-fuchsia-400"/> Oft zusammen gegessen
@@ -598,7 +713,7 @@ export default function App() {
         )}
 
         {stagedItems.length > 0 && !isAnalyzing && (
-           <div className="mt-8 animate-in slide-in-from-bottom-4">
+           <div className="mt-6 animate-in slide-in-from-bottom-4">
              <div className="flex justify-between items-end mb-3">
                <h4 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
                  {getMealIcon(selectedMeal)} Ausgewählt für {selectedMeal}
@@ -664,12 +779,12 @@ export default function App() {
            </div>
         )}
         
-        {stagedItems.length === 0 && searchQuery === '' && !isAnalyzing && (
+        {stagedItems.length === 0 && searchQuery === '' && aiPromptText === '' && !isAnalyzing && (
           <div className="mt-12 text-center text-slate-400 dark:text-slate-500">
             <div className="bg-slate-100 dark:bg-slate-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors">
-              <Search size={24} className="text-slate-300 dark:text-slate-600" />
+              <Wand2 size={24} className="text-slate-300 dark:text-slate-600" />
             </div>
-            <p className="text-sm">Suche nach Lebensmitteln (z.B. Hanuta)<br/>und passe die Gramm-Menge an.</p>
+            <p className="text-sm">Nutze die Suche, den Foto-Scan oder<br/>den neuen **KI-Prompt**, um Gerichte einzutragen.</p>
           </div>
         )}
       </div>
