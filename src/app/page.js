@@ -298,53 +298,15 @@ export default function App() {
     setIsAiAnalyzing(true);
 
     try {
-      const apiKey = ""; 
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-      const payload = {
-        contents: [{
-          parts: [{
-            text: `Analysiere folgende Nahrungsangabe in natürlicher Sprache und zerlege sie in logische einzelne Lebensmittel-Bestandteile mit realistischen Nährwerten pro 100g sowie der erkannten Gramm-Menge. Angabe: "${aiPromptText}"`
-          }]
-        }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "ARRAY",
-            items: {
-              type: "OBJECT",
-              properties: {
-                name: { type: "STRING" },
-                amount: { type: "NUMBER", description: "Gramm-Menge" },
-                per100g: {
-                  type: "OBJECT",
-                  properties: {
-                    calories: { type: "INTEGER" },
-                    p: { type: "NUMBER" },
-                    c: { type: "NUMBER" },
-                    f: { type: "NUMBER" }
-                  },
-                  required: ["calories", "p", "c", "f"]
-                }
-              },
-              required: ["name", "amount", "per100g"]
-            }
-          }
-        }
-      };
-
-      const response = await fetch(apiUrl, {
+      const response = await fetch('/api/ai-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ promptText: aiPromptText })
       });
-      const result = await response.json();
-      const candidate = result.candidates?.[0];
-      if (candidate && candidate.content?.parts?.[0]?.text) {
-        const parsedItems = JSON.parse(candidate.content.parts[0].text);
-        if (Array.isArray(parsedItems)) {
-          setStagedItems(prev => [...prev, ...parsedItems]);
-          setAiPromptText('');
-        }
+      const parsedItems = await response.json();
+      if (Array.isArray(parsedItems)) {
+        setStagedItems(prev => [...prev, ...parsedItems]);
+        setAiPromptText('');
       }
     } catch (err) {
       console.error("Gemini AI Prompt Fehler:", err);
