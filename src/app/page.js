@@ -132,14 +132,29 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   
   // --- USER PROFILE & ONBOARDING ---
-  const [showOnboarding, setShowOnboarding] = useState(true);
-  const [profile, setProfile] = useState({
-    gender: 'male',
-    age: 30,
-    height: 180,
-    weight: 75,
-    activity: 1.55,
-    goal: 0 
+  // Wir prüfen direkt im localStorage, ob das Onboarding schon mal abgeschlossen wurde
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('food_tracker_onboarded') !== 'true';
+    }
+    return true;
+  });
+
+  const [profile, setProfile] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedProfile = localStorage.getItem('food_tracker_profile');
+      if (savedProfile) {
+        try { return JSON.parse(savedProfile); } catch (e) {}
+      }
+    }
+    return {
+      gender: 'male',
+      age: 30,
+      height: 180,
+      weight: 75,
+      activity: 1.55,
+      goal: 0 
+    };
   });
 
   // --- KALORIEN BERECHNUNG (Mifflin-St. Jeor) ---
@@ -303,9 +318,19 @@ export default function App() {
   };
 
   const handleSaveProfile = async () => {
+    // Sofort lokal speichern, damit beim Reload nichts verloren geht
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('food_tracker_onboarded', 'true');
+      localStorage.setItem('food_tracker_profile', JSON.stringify(profile));
+    }
+
     // Cloud Speicherung fürs User-Profil
     if (user && db) {
-      await setDoc(doc(db, getBasePath(user.uid), 'profiles', 'default'), profile);
+      try {
+        await setDoc(doc(db, getBasePath(user.uid), 'profiles', 'default'), profile);
+      } catch (err) {
+        console.error("Cloud Profile Save Error:", err);
+      }
     }
     setShowOnboarding(false);
     setCurrentView('dashboard');
