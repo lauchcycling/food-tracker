@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Home, BarChart2, PlusCircle, Camera, ChevronLeft, 
   Flame, Droplets, Beef, Utensils, AlertCircle, Edit2, Check,
-  Search, Plus, X, Sparkles, Coffee, Sun, Moon, Apple, Settings, Target, Activity, User, Loader2, Trash2, Wand2
+  Search, Plus, X, Sparkles, Coffee, Sun, Moon, Apple, Settings, Target, Activity, User, Loader2, Trash2, Wand2, Leaf
 } from 'lucide-react';
 
 import { initializeApp } from 'firebase/app';
@@ -68,6 +68,33 @@ const compressImage = (file, maxWidth = 800, quality = 0.7) => {
     };
   });
 };
+
+// Integrierte Datenbank für unverarbeitete Frischeprodukte & Grundnahrungsmittel
+const GENERIC_FOODS = [
+  { id: 'gen-1', name: 'Apfel (frisch, mit Schale)', brand: 'Grundnahrungsmittel', keywords: ['apfel', 'obst', 'apple'], per100g: { calories: 52, p: 0.3, c: 14, f: 0.2 }, amount: 100 },
+  { id: 'gen-2', name: 'Banane (frisch)', brand: 'Grundnahrungsmittel', keywords: ['banane', 'banana', 'obst'], per100g: { calories: 89, p: 1.1, c: 22.8, f: 0.3 }, amount: 100 },
+  { id: 'gen-3', name: 'Birne (frisch)', brand: 'Grundnahrungsmittel', keywords: ['birne', 'obst'], per100g: { calories: 57, p: 0.4, c: 15, f: 0.1 }, amount: 100 },
+  { id: 'gen-4', name: 'Erdbeeren (frisch)', brand: 'Grundnahrungsmittel', keywords: ['erdbeere', 'erdbeeren', 'beeren'], per100g: { calories: 32, p: 0.7, c: 7.7, f: 0.3 }, amount: 100 },
+  { id: 'gen-5', name: 'Blaubeeren / Heidelbeeren', brand: 'Grundnahrungsmittel', keywords: ['blaubeere', 'heidelbeere', 'beeren'], per100g: { calories: 57, p: 0.7, c: 14, f: 0.3 }, amount: 100 },
+  { id: 'gen-6', name: 'Avocado (frisch)', brand: 'Grundnahrungsmittel', keywords: ['avocado'], per100g: { calories: 160, p: 2, c: 8.5, f: 14.7 }, amount: 100 },
+  { id: 'gen-7', name: 'Brokkoli (frisch/gekocht)', brand: 'Grundnahrungsmittel', keywords: ['brokkoli', 'gemüse'], per100g: { calories: 34, p: 2.8, c: 6.6, f: 0.4 }, amount: 100 },
+  { id: 'gen-8', name: 'Karotte / Möhre (frisch)', brand: 'Grundnahrungsmittel', keywords: ['karotte', 'möhre', 'gemüse'], per100g: { calories: 41, p: 0.9, c: 9.6, f: 0.2 }, amount: 100 },
+  { id: 'gen-9', name: 'Gurke (frisch)', brand: 'Grundnahrungsmittel', keywords: ['gurke', 'salatgurke'], per100g: { calories: 15, p: 0.7, c: 3.6, f: 0.1 }, amount: 100 },
+  { id: 'gen-10', name: 'Tomate (frisch)', brand: 'Grundnahrungsmittel', keywords: ['tomate', 'gemüse'], per100g: { calories: 18, p: 0.9, c: 3.9, f: 0.2 }, amount: 100 },
+  { id: 'gen-11', name: 'Kartoffeln (gekocht)', brand: 'Grundnahrungsmittel', keywords: ['kartoffel', 'kartoffeln'], per100g: { calories: 87, p: 1.9, c: 20.1, f: 0.1 }, amount: 100 },
+  { id: 'gen-12', name: 'Reis (weiß, gekocht)', brand: 'Grundnahrungsmittel', keywords: ['reis'], per100g: { calories: 130, p: 2.7, c: 28, f: 0.3 }, amount: 100 },
+  { id: 'gen-13', name: 'Hähnchenbrustfilet (roh/gebraten)', brand: 'Grundnahrungsmittel', keywords: ['hähnchen', 'huhn', 'geflügel', 'fleisch'], per100g: { calories: 165, p: 31, c: 0, f: 3.6 }, amount: 100 },
+  { id: 'gen-14', name: 'Rinderhackfleisch (mager)', brand: 'Grundnahrungsmittel', keywords: ['hackfleisch', 'rind', 'fleisch'], per100g: { calories: 215, p: 20, c: 0, f: 15 }, amount: 100 },
+  { id: 'gen-15', name: 'Lachsfilet (frisch)', brand: 'Grundnahrungsmittel', keywords: ['lachs', 'fisch'], per100g: { calories: 208, p: 20, c: 0, f: 13 }, amount: 100 },
+  { id: 'gen-16', name: 'Hühnereu (Größe M, ca. 50g)', brand: 'Grundnahrungsmittel', keywords: ['ei', 'eier'], per100g: { calories: 155, p: 12.6, c: 1.1, f: 10.6 }, amount: 50 },
+  { id: 'gen-17', name: 'Haferflocken', brand: 'Grundnahrungsmittel', keywords: ['haferflocken', 'oats', 'müsli'], per100g: { calories: 368, p: 13.5, c: 58.7, f: 7 }, amount: 100 },
+  { id: 'gen-18', name: 'Magerquark', brand: 'Grundnahrungsmittel', keywords: ['quark', 'magerquark'], per100g: { calories: 68, p: 12, c: 4, f: 0.2 }, amount: 100 },
+  { id: 'gen-19', name: 'Vollmilch (3.5% Fett)', brand: 'Grundnahrungsmittel', keywords: ['milch', 'vollmilch'], per100g: { calories: 64, p: 3.3, c: 4.8, f: 3.5 }, amount: 100 },
+  { id: 'gen-20', name: 'Mandeln (natur)', brand: 'Grundnahrungsmittel', keywords: ['mandel', 'mandeln', 'nüsse'], per100g: { calories: 579, p: 21, c: 22, f: 49 }, amount: 100 },
+  { id: 'gen-21', name: 'Walnüsse', brand: 'Grundnahrungsmittel', keywords: ['walnuss', 'walnüsse', 'nüsse'], per100g: { calories: 654, p: 15, c: 14, f: 65 }, amount: 100 },
+  { id: 'gen-22', name: 'Olivenöl', brand: 'Grundnahrungsmittel', keywords: ['öl', 'olivenöl'], per100g: { calories: 884, p: 0, c: 0, f: 100 }, amount: 10 },
+  { id: 'gen-23', name: 'Butter', brand: 'Grundnahrungsmittel', keywords: ['butter'], per100g: { calories: 717, p: 0.8, c: 0.7, f: 81 }, amount: 10 }
+];
 
 const MEAL_TYPES = ['Frühstück', 'Mittagessen', 'Abendessen', 'Snack'];
 
@@ -219,43 +246,58 @@ export default function App() {
     setSuggestions(newSuggestions);
   }, [stagedItems]);
 
+  // Hybrid-Suche: Kombination aus lokaler Grundnahrungsmittel-DB + OpenFoodFacts
   useEffect(() => {
     const searchFood = async () => {
-      if (searchQuery.length < 3) {
+      const q = searchQuery.trim().toLowerCase();
+      if (q.length < 2) {
         setSearchResults([]);
         return;
       }
       
       setIsSearching(true);
-      try {
-        const res = await fetch(`https://de.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(searchQuery)}&search_simple=1&action=process&json=1&page_size=8`);
-        const data = await res.json();
-        
-        if (data.products) {
-          const mappedResults = data.products
-            .filter(p => p.product_name && p.nutriments && p.nutriments['energy-kcal_100g']) 
-            .map(p => ({
-              id: p._id,
-              name: p.product_name,
-              brand: p.brands ? p.brands.split(',')[0] : 'Generisch',
-              per100g: {
-                calories: Math.round(p.nutriments['energy-kcal_100g'] || 0),
-                p: Math.round(p.nutriments.proteins_100g || 0),
-                c: Math.round(p.nutriments.carbohydrates_100g || 0),
-                f: Math.round(p.nutriments.fat_100g || 0)
-              },
-              amount: 100 
-            }));
-          setSearchResults(mappedResults);
+
+      // 1. Lokale Grundnahrungsmittel durchsuchen
+      const matchedGeneric = GENERIC_FOODS.filter(item => 
+        item.name.toLowerCase().includes(q) || 
+        (item.keywords && item.keywords.some(k => k.includes(q)))
+      );
+
+      let apiResults = [];
+
+      // 2. OpenFoodFacts durchsuchen (falls Mindestlänge >= 3)
+      if (q.length >= 3) {
+        try {
+          const res = await fetch(`https://de.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(searchQuery)}&search_simple=1&action=process&json=1&page_size=8`);
+          const data = await res.json();
+          
+          if (data.products) {
+            apiResults = data.products
+              .filter(p => p.product_name && p.nutriments && p.nutriments['energy-kcal_100g']) 
+              .map(p => ({
+                id: p._id,
+                name: p.product_name,
+                brand: p.brands ? p.brands.split(',')[0] : 'Supermarkt',
+                per100g: {
+                  calories: Math.round(p.nutriments['energy-kcal_100g'] || 0),
+                  p: Math.round(p.nutriments.proteins_100g || 0),
+                  c: Math.round(p.nutriments.carbohydrates_100g || 0),
+                  f: Math.round(p.nutriments.fat_100g || 0)
+                },
+                amount: 100 
+              }));
+          }
+        } catch (err) {
+          console.error("Fehler bei der API Suche:", err);
         }
-      } catch (err) {
-        console.error("Fehler bei der API Suche:", err);
-      } finally {
-        setIsSearching(false);
       }
+
+      // Kombinierte Ergebnisse anzeigen: Grundnahrungsmittel immer ganz oben!
+      setSearchResults([...matchedGeneric, ...apiResults]);
+      setIsSearching(false);
     };
 
-    const timeoutId = setTimeout(searchFood, 500);
+    const timeoutId = setTimeout(searchFood, 300);
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
@@ -575,7 +617,7 @@ export default function App() {
              <Search className="absolute left-4 text-slate-400 dark:text-slate-500 group-focus-within:text-fuchsia-500 transition-colors" size={20} />
              <input 
                type="text" 
-               placeholder="Lebensmittel suchen (z.B. Hanuta)..." 
+               placeholder="z.B. Apfel, Banane, Hanuta..." 
                className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm focus:ring-2 focus:ring-fuchsia-500 outline-none text-slate-800 dark:text-slate-100 font-medium placeholder:font-normal transition-colors placeholder:text-slate-400 dark:placeholder:text-slate-500" 
                value={searchQuery} 
                onChange={(e) => setSearchQuery(e.target.value)} 
@@ -614,11 +656,11 @@ export default function App() {
           </div>
         )}
 
-        {searchQuery.length >= 3 && !isAnalyzing && inputTab === 'search' && (
+        {searchQuery.length >= 2 && !isAnalyzing && inputTab === 'search' && (
            <div className="mt-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in slide-in-from-top-2 transition-colors">
              {isSearching ? (
                <div className="p-6 text-center text-slate-500 dark:text-slate-400 flex justify-center items-center gap-2">
-                 <Loader2 className="animate-spin" size={20} /> Suche in globaler Datenbank...
+                 <Loader2 className="animate-spin" size={20} /> Suche in Datenbanken...
                </div>
              ) : searchResults.length > 0 ? (
                <div className="max-h-64 overflow-y-auto">
@@ -630,8 +672,15 @@ export default function App() {
                    >
                       <div className="text-left pr-4">
                         <p className="font-bold text-slate-800 dark:text-slate-200 line-clamp-1">{item.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          {item.brand} • {item.per100g.calories} kcal / 100g
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1.5">
+                          {item.brand === 'Grundnahrungsmittel' ? (
+                            <span className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md font-bold text-[10px] flex items-center gap-1">
+                              <Leaf size={10} /> Frische
+                            </span>
+                          ) : (
+                            <span>{item.brand}</span>
+                          )}
+                          <span>• {item.per100g.calories} kcal / 100g</span>
                         </p>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
@@ -744,9 +793,9 @@ export default function App() {
         {stagedItems.length === 0 && searchQuery === '' && aiPromptText === '' && !isAnalyzing && (
           <div className="mt-12 text-center text-slate-400 dark:text-slate-500">
             <div className="bg-slate-100 dark:bg-slate-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors">
-              <Wand2 size={24} className="text-slate-300 dark:text-slate-600" />
+              <Leaf size={24} className="text-slate-300 dark:text-slate-600" />
             </div>
-            <p className="text-sm">Nutze die Suche, den Foto-Scan oder<br/>den neuen **KI-Prompt**, um Gerichte einzutragen.</p>
+            <p className="text-sm">Suche nach Frischeprodukten (z.B. Apfel, Banane)<br/>oder benutze den KI-Prompt.</p>
           </div>
         )}
       </div>
