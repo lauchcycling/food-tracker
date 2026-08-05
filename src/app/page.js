@@ -4,7 +4,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Home, BarChart2, PlusCircle, Camera, ChevronLeft, 
   Flame, Droplets, Beef, Utensils, AlertCircle, Edit2, Check,
-  Search, Plus, X, Sparkles, Coffee, Sun, Moon, Apple, Settings, Target, Activity, User, Loader2, Trash2, Wand2, Leaf
+  Search, Plus, X, Sparkles, Coffee, Sun, Moon, Apple, Settings, Target, Activity, User, Loader2, Trash2, Wand2, Leaf,
+  Mic, MicOff
 } from 'lucide-react';
 
 import { initializeApp } from 'firebase/app';
@@ -224,6 +225,64 @@ export default function App() {
   // AI Prompt State
   const [aiPromptText, setAiPromptText] = useState('');
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
+
+  // Spracheingabe State
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(true);
+  const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    const SpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+    if (!SpeechRecognition) {
+      setSpeechSupported(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'de-DE';
+
+    recognition.onresult = (event) => {
+      let currentTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        currentTranscript += event.results[i][0].transcript;
+      }
+      if (currentTranscript) {
+        setAiPromptText(currentTranscript);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      console.error("Fehler bei der Spracherkennung:", event.error);
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+  }, []);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      try {
+        setIsListening(true);
+        recognitionRef.current.start();
+      } catch (err) {
+        console.error("Fehler beim Starten der Spracherkennung:", err);
+        setIsListening(false);
+      }
+    }
+  };
 
   const [stagedItems, setStagedItems] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
@@ -628,16 +687,60 @@ export default function App() {
         {/* MODE 2: AI PROMPT */}
         {inputTab === 'prompt' && (
           <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-3 transition-colors animate-in fade-in">
-            <div className="flex items-center gap-2 text-fuchsia-600 dark:text-fuchsia-400 text-sm font-bold">
-              <Wand2 size={16} /> Natürliche Beschreibung eingeben
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-fuchsia-600 dark:text-fuchsia-400 text-sm font-bold">
+                <Wand2 size={16} /> Natürliche Beschreibung
+              </div>
+              {speechSupported && (
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                    isListening
+                      ? 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30'
+                      : 'bg-fuchsia-100 dark:bg-fuchsia-900/40 text-fuchsia-700 dark:text-fuchsia-300 hover:bg-fuchsia-200 dark:hover:bg-fuchsia-900/60'
+                  }`}
+                  title={isListening ? 'Aufnahme stoppen' : 'Spracheingabe starten'}
+                >
+                  {isListening ? <MicOff size={14} /> : <Mic size={14} />}
+                  <span>{isListening ? 'Zuhören...' : 'Einsprechen'}</span>
+                </button>
+              )}
             </div>
-            <textarea 
-              rows={3}
-              placeholder="z.B. 250g Nudeln mit Tomatensoße und 30g Parmesan..."
-              className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-medium text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm resize-none transition-colors"
-              value={aiPromptText}
-              onChange={(e) => setAiPromptText(e.target.value)}
-            />
+
+            <div className="relative">
+              <textarea 
+                rows={3}
+                placeholder={isListening ? "Ich höre zu... sprich jetzt..." : "z.B. 250g Nudeln mit Tomatensoße und 30g Parmesan..."}
+                className={`w-full p-3 pr-10 bg-slate-50 dark:bg-slate-900 border rounded-xl font-medium text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-fuchsia-500 text-sm resize-none transition-colors ${
+                  isListening ? 'border-red-400 ring-2 ring-red-400/50 bg-red-50/20 dark:bg-red-950/20' : 'border-slate-200 dark:border-slate-700'
+                }`}
+                value={aiPromptText}
+                onChange={(e) => setAiPromptText(e.target.value)}
+              />
+              {speechSupported && (
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  className={`absolute right-3 bottom-3 p-2 rounded-xl transition-all ${
+                    isListening
+                      ? 'bg-red-500 text-white animate-bounce shadow-md'
+                      : 'text-slate-400 hover:text-fuchsia-600 dark:hover:text-fuchsia-400 hover:bg-slate-200/50 dark:hover:bg-slate-800'
+                  }`}
+                  title="Mikrofon aktivieren"
+                >
+                  {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+                </button>
+              )}
+            </div>
+
+            {isListening && (
+              <p className="text-xs text-red-500 dark:text-red-400 font-medium flex items-center gap-1.5 animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                Sprich deine Mahlzeit ein (z.B. "Ein Apfel und 200g Magerquark")
+              </p>
+            )}
+
             <button 
               onClick={handleAiPromptSubmit}
               disabled={isAiAnalyzing || !aiPromptText.trim()}
